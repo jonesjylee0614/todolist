@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>TodoList API 手动测试台</title>
+  <style>
+    :root {
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #1f2937;
+      background: #f9fafb;
+    }
+    body {
+      margin: 20px;
+    }
+    h1, h2 {
+      margin-bottom: 8px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      align-items: center;
+      padding: 12px 16px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+      color: #4b5563;
+    }
+    input, select, textarea {
+      margin-top: 4px;
+      padding: 8px;
+      font-size: 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      min-width: 200px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+    button {
+      cursor: pointer;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button.secondary {
+      background: #6b7280;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button.secondary:hover {
+      background: #4b5563;
+    }
+    details {
+      margin-bottom: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+    summary {
+      cursor: pointer;
+      padding: 12px 16px;
+      font-weight: 600;
+      outline: none;
+    }
+    summary::marker {
+      color: #94a3b8;
+    }
+    .panel {
+      padding: 0 16px 16px 16px;
+    }
+    .panel h4 {
+      margin: 16px 0 8px;
+    }
+    .panel .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    pre {
+      padding: 16px;
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      margin-left: 8px;
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+  </style>
+</head>
+<body>
+  <h1>TodoList 后端接口测试台</h1>
+  <div class="controls">
+    <label>
+      API 基础地址
+      <input id="base-url" value="http://localhost:8080/api/v1" />
+    </label>
+    <label>
+      最近一次创建的任务 UUID
+      <input id="last-task-id" placeholder="点击右侧按钮自动填充" />
+    </label>
+    <button class="secondary" onclick="clearOutput()">清空响应</button>
+    <button class="secondary" onclick="callHealthz()">检查健康状态</button>
+  </div>
+
+  <section>
+    <h2>任务接口</h2>
+
+    <details open>
+      <summary>GET /tasks <span class="badge">查询</span></summary>
+      <div class="panel">
+        <div class="controls" style="margin:0 0 16px 0; padding:12px;">
+          <label>status
+            <select id="list-status">
+              <option value="">全部</option>
+              <option value="now">now</option>
+              <option value="future">future</option>
+              <option value="history">history</option>
+            </select>
+          </label>
+          <label>keyword
+            <input id="list-keyword" placeholder="可选" />
+          </label>
+        </div>
+        <div class="actions">
+          <button onclick="listTasks()">发送请求</button>
+        </div>
+      </div>
+    </details>
+
+    <details open>
+      <summary>POST /tasks <span class="badge">新增</span></summary>
+      <div class="panel">
+        <h4>请求体</h4>
+        <textarea id="create-body">{
+  "title": "撰写日报",
+  "status": "future",
+  "deadline": "2025-11-05",
+  "notes": "先收集进展" 
+}</textarea>
+        <div class="actions">
+          <button onclick="createTask()">创建任务</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>GET /tasks/{uuid} <span class="badge">详情</span></summary>
+      <div class="panel">
+        <label>任务 UUID
+          <input id="get-task-id" placeholder="默认使用最近创建的 ID" />
+        </label>
+        <div class="actions">
+          <button onclick="getTask()">获取任务</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>PATCH /tasks/{uuid} <span class="badge">编辑</span></summary>
+      <div class="panel">
+        <label>任务 UUID
+          <input id="update-task-id" placeholder="默认使用最近创建的 ID" />
+        </label>
+        <h4>请求体</h4>
+        <textarea id="update-body">{
+  "title": "撰写日报（更新）",
+  "notes": "今日重点整理" 
+}</textarea>
+        <div class="actions">
+          <button onclick="updateTask()">更新任务</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>PATCH /tasks/{uuid}/status <span class="badge">移动</span></summary>
+      <div class="panel">
+        <label>任务 UUID
+          <input id="status-task-id" placeholder="默认使用最近创建的 ID" />
+        </label>
+        <label>目标分组
+          <select id="status-target">
+            <option value="now">now</option>
+            <option value="future">future</option>
+            <option value="history">history</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button onclick="updateStatus()">变更状态</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>POST /tasks/{uuid}/complete <span class="badge">完成</span></summary>
+      <div class="panel">
+        <label>任务 UUID
+          <input id="complete-task-id" placeholder="默认使用最近创建的 ID" />
+        </label>
+        <div class="actions">
+          <button onclick="completeTask()">标记完成</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>DELETE /tasks/{uuid} <span class="badge">删除</span></summary>
+      <div class="panel">
+        <label>任务 UUID
+          <input id="delete-task-id" placeholder="默认使用最近创建的 ID" />
+        </label>
+        <div class="actions">
+          <button onclick="deleteTask()">删除任务</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>POST /tasks/bulk/move <span class="badge">批量移动</span></summary>
+      <div class="panel">
+        <h4>请求体</h4>
+        <textarea id="bulk-move-body">{
+  "ids": ["<uuid-1>", "<uuid-2>"],
+  "targetStatus": "now"
+}</textarea>
+        <div class="actions">
+          <button onclick="bulkMove()">批量移动</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>POST /tasks/bulk/complete <span class="badge">批量完成</span></summary>
+      <div class="panel">
+        <textarea id="bulk-complete-body">{
+  "ids": ["<uuid-1>", "<uuid-2>"]
+}</textarea>
+        <div class="actions">
+          <button onclick="bulkComplete()">批量完成</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>POST /tasks/bulk/delete <span class="badge">批量删除</span></summary>
+      <div class="panel">
+        <textarea id="bulk-delete-body">{
+  "ids": ["<uuid-1>", "<uuid-2>"]
+}</textarea>
+        <div class="actions">
+          <button onclick="bulkDelete()">批量删除</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>POST /tasks/order <span class="badge">排序</span></summary>
+      <div class="panel">
+        <textarea id="order-body">{
+  "status": "now",
+  "orderedIds": ["<uuid-1>", "<uuid-2>", "<uuid-3>"]
+}</textarea>
+        <div class="actions">
+          <button onclick="updateOrder()">更新排序</button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <h2>撤销接口</h2>
+    <details open>
+      <summary>POST /undo <span class="badge">撤销操作</span></summary>
+      <div class="panel">
+        <label>Undo Token
+          <input id="undo-token" placeholder="复制响应中的 undoToken" />
+        </label>
+        <div class="actions">
+          <button onclick="undoAction()">撤销</button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <h2>响应结果</h2>
+  <pre id="output">暂无响应</pre>
+
+  <script>
+    const state = {
+      lastTaskIdInput: document.getElementById('last-task-id'),
+      output: document.getElementById('output')
+    };
+
+    function baseUrl() {
+      return document.getElementById('base-url').value.replace(/\/?$/, '');
+    }
+
+    function defaultTaskId(fieldId) {
+      const input = document.getElementById(fieldId);
+      if (!input.value) {
+        input.value = state.lastTaskIdInput.value || '';
+      }
+      return input.value.trim();
+    }
+
+    function showResult(title, data) {
+      const timestamp = new Date().toISOString();
+      state.output.textContent = `${timestamp} - ${title}\n\n${JSON.stringify(data, null, 2)}`;
+      if (data?.undoToken) {
+        document.getElementById('undo-token').value = data.undoToken;
+      }
+    }
+
+    function handleError(title, error) {
+      console.error(error);
+      showResult(title, { error: error.message || String(error) });
+    }
+
+    async function request(method, path, body, query) {
+      const url = new URL(baseUrl() + path);
+      if (query) {
+        Object.entries(query).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            url.searchParams.set(key, value);
+          }
+        });
+      }
+      const init = {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      };
+      if (body !== undefined && body !== null) {
+        init.body = JSON.stringify(body);
+      }
+      const res = await fetch(url.toString(), init);
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        data = { status: res.status, message: res.statusText };
+      }
+      return { status: res.status, data };
+    }
+
+    function parseJSON(textareaId) {
+      const raw = document.getElementById(textareaId).value;
+      try {
+        return JSON.parse(raw);
+      } catch (error) {
+        throw new Error(`JSON 解析失败: ${error.message}`);
+      }
+    }
+
+    function setLastTaskId(uuid) {
+      if (uuid) {
+        state.lastTaskIdInput.value = uuid;
+      }
+    }
+
+    function clearOutput() {
+      state.output.textContent = '暂无响应';
+    }
+
+    async function callHealthz() {
+      try {
+        const root = baseUrl().replace(/\/api\/v1$/, '');
+        const res = await fetch(`${root}/healthz`);
+        const data = await res.json();
+        showResult('GET /healthz', data);
+      } catch (error) {
+        handleError('GET /healthz', error);
+      }
+    }
+
+    async function listTasks() {
+      try {
+        const status = document.getElementById('list-status').value;
+        const keyword = document.getElementById('list-keyword').value;
+        const result = await request('GET', '/tasks', undefined, { status, keyword });
+        showResult('GET /tasks', result);
+      } catch (error) {
+        handleError('GET /tasks', error);
+      }
+    }
+
+    async function createTask() {
+      try {
+        const body = parseJSON('create-body');
+        const result = await request('POST', '/tasks', body);
+        showResult('POST /tasks', result);
+        const uuid = result?.data?.data?.uuid;
+        setLastTaskId(uuid);
+      } catch (error) {
+        handleError('POST /tasks', error);
+      }
+    }
+
+    async function getTask() {
+      try {
+        const uuid = defaultTaskId('get-task-id');
+        if (!uuid) throw new Error('请提供任务 UUID');
+        const result = await request('GET', `/tasks/${uuid}`);
+        showResult(`GET /tasks/${uuid}`, result);
+      } catch (error) {
+        handleError('GET /tasks/{uuid}', error);
+      }
+    }
+
+    async function updateTask() {
+      try {
+        const uuid = defaultTaskId('update-task-id');
+        if (!uuid) throw new Error('请提供任务 UUID');
+        const body = parseJSON('update-body');
+        const result = await request('PATCH', `/tasks/${uuid}`, body);
+        showResult(`PATCH /tasks/${uuid}`, result);
+      } catch (error) {
+        handleError('PATCH /tasks/{uuid}', error);
+      }
+    }
+
+    async function updateStatus() {
+      try {
+        const uuid = defaultTaskId('status-task-id');
+        if (!uuid) throw new Error('请提供任务 UUID');
+        const status = document.getElementById('status-target').value;
+        const result = await request('PATCH', `/tasks/${uuid}/status`, { status });
+        showResult(`PATCH /tasks/${uuid}/status`, result);
+      } catch (error) {
+        handleError('PATCH /tasks/{uuid}/status', error);
+      }
+    }
+
+    async function completeTask() {
+      try {
+        const uuid = defaultTaskId('complete-task-id');
+        if (!uuid) throw new Error('请提供任务 UUID');
+        const result = await request('POST', `/tasks/${uuid}/complete`, {});
+        showResult(`POST /tasks/${uuid}/complete`, result);
+      } catch (error) {
+        handleError('POST /tasks/{uuid}/complete', error);
+      }
+    }
+
+    async function deleteTask() {
+      try {
+        const uuid = defaultTaskId('delete-task-id');
+        if (!uuid) throw new Error('请提供任务 UUID');
+        const result = await request('DELETE', `/tasks/${uuid}`);
+        showResult(`DELETE /tasks/${uuid}`, result);
+      } catch (error) {
+        handleError('DELETE /tasks/{uuid}', error);
+      }
+    }
+
+    async function bulkMove() {
+      try {
+        const body = parseJSON('bulk-move-body');
+        const result = await request('POST', '/tasks/bulk/move', body);
+        showResult('POST /tasks/bulk/move', result);
+      } catch (error) {
+        handleError('POST /tasks/bulk/move', error);
+      }
+    }
+
+    async function bulkComplete() {
+      try {
+        const body = parseJSON('bulk-complete-body');
+        const result = await request('POST', '/tasks/bulk/complete', body);
+        showResult('POST /tasks/bulk/complete', result);
+      } catch (error) {
+        handleError('POST /tasks/bulk/complete', error);
+      }
+    }
+
+    async function bulkDelete() {
+      try {
+        const body = parseJSON('bulk-delete-body');
+        const result = await request('POST', '/tasks/bulk/delete', body);
+        showResult('POST /tasks/bulk/delete', result);
+      } catch (error) {
+        handleError('POST /tasks/bulk/delete', error);
+      }
+    }
+
+    async function updateOrder() {
+      try {
+        const body = parseJSON('order-body');
+        const result = await request('POST', '/tasks/order', body);
+        showResult('POST /tasks/order', result);
+      } catch (error) {
+        handleError('POST /tasks/order', error);
+      }
+    }
+
+    async function undoAction() {
+      try {
+        const token = document.getElementById('undo-token').value.trim();
+        if (!token) throw new Error('请填写 undo token');
+        const result = await request('POST', '/undo', { token });
+        showResult('POST /undo', result);
+      } catch (error) {
+        handleError('POST /undo', error);
+      }
+    }
+  </script>
+</body>
+</html>
+

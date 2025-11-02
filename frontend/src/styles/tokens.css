@@ -1,0 +1,18 @@
+:root {
+  --surface-default: rgba(15, 23, 42, 0.85);
+  --surface-muted: rgba(30, 41, 59, 0.8);
+  --border-strong: rgba(148, 163, 184, 0.3);
+  --border-muted: rgba(148, 163, 184, 0.16);
+  --text-primary: #e2e8f0;
+  --text-secondary: #cbd5f5;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warning: #f97316;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --surface-default: rgba(15, 23, 42, 0.95);
+  }
+}
+
