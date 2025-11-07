@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
+import { reactive, toRefs } from 'vue';
 import { nanoid } from 'nanoid/non-secure';
 
 export type ToastIntent = 'success' | 'error' | 'warning' | 'info';
@@ -25,7 +25,14 @@ export const useUiStore = defineStore('ui', () => {
     isDrawerOpen: false,
     isQuickAddOpen: false,
     searchKeyword: '',
-    mailbox: [] as Array<() => void>
+    mailbox: [] as Array<() => void>,
+    // 新增状态：筛选和模态框
+    activeFilter: 'all' as string,
+    activeSort: 'deadline' as string,
+    isModalOpen: false,
+    modalMode: 'create' as 'create' | 'edit',
+    editingTaskId: null as string | null,
+    modalDefaultStatus: 'future' as 'now' | 'future'
   });
 
   function pushToast(options: ToastOptions) {
@@ -79,14 +86,39 @@ export const useUiStore = defineStore('ui', () => {
     state.searchKeyword = keyword;
   }
 
+  function setFilter(filter: string) {
+    state.activeFilter = filter;
+  }
+
+  function setSort(sort: string) {
+    state.activeSort = sort;
+  }
+
+  function openModal(mode: 'create' | 'edit', taskId?: string, defaultStatus?: 'now' | 'future') {
+    state.modalMode = mode;
+    state.editingTaskId = taskId || null;
+    state.modalDefaultStatus = defaultStatus || 'future';
+    state.isModalOpen = true;
+  }
+
+  function closeModal() {
+    state.isModalOpen = false;
+    state.editingTaskId = null;
+    state.modalDefaultStatus = 'future';
+  }
+
   return {
-    ...state,
+    ...toRefs(state),
     pushToast,
     pushUndoToast,
     dismissToast,
     openDrawer,
     closeDrawer,
-    setSearch
+    setSearch,
+    setFilter,
+    setSort,
+    openModal,
+    closeModal
   };
 });
 

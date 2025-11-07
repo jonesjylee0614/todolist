@@ -1,8 +1,8 @@
+@import './tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import './tokens.css';
 
 :root {
   color-scheme: dark;
@@ -20,21 +20,28 @@ body {
   @apply rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-surface;
 }
 
-.task-card {
-  @apply glass-surface transition-transform hover:-translate-y-1 hover:shadow-lg;
+.scrollbar-thin {
+  /* 完全隐藏滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none;
 }
 
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.4);
-  border-radius: 9999px;
+/* 页面过渡动画 */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.scrollbar-thin::-webkit-scrollbar-track {
-  background-color: transparent;
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
 }
 
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}

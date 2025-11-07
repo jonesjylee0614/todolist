@@ -1,55 +1,34 @@
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="hidden items-center justify-between gap-3 text-sm text-slate-300 lg:flex">
-      <div class="flex items-center gap-2">
-        <span class="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-        <span>现在：{{ nowTasks.length }} 项</span>
-        <span
-          v-if="capacityWarning"
-          class="ml-3 inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-300"
-        >
-          <span class="h-2 w-2 rounded-full bg-amber-400" /> 建议控制 5 项以内
-        </span>
-      </div>
-      <div class="flex items-center gap-4">
-        <span>{{ nowTasks.length + futureTasks.length + historyTasks.length }} 条任务</span>
-        <button
-          type="button"
-          class="rounded-full border border-white/10 px-4 py-2 text-xs text-slate-200 transition hover:border-white/30 hover:text-white"
-          @click="refreshAll"
-        >
-          刷新
-        </button>
-      </div>
-    </div>
-
-    <div class="grid gap-4 lg:grid-cols-3">
-      <TaskColumn
-        v-for="column in visibleColumns"
-        :key="column.status"
-        :status="column.status"
-        :title="column.title"
-        :tasks="column.tasks"
-        :loading="column.loading"
-        :highlight="column.status === active"
-        :capacity-warning="capacityWarning && column.status === 'now'"
-        @open-task="openDrawer"
-        @reorder="handleReorder"
-        @move="handleMove"
-        @complete="handleComplete"
-        @delete="handleDelete"
-      />
-    </div>
+  <div class="task-board-wrapper">
+    <TaskColumn
+      v-for="column in visibleColumns"
+      :key="column.status"
+      :status="column.status"
+      :title="column.title"
+      :tasks="column.tasks"
+      :loading="column.loading"
+      :highlight="column.status === props.active"
+      :capacity-warning="capacityWarning && column.status === 'now'"
+      @open-task="openDrawer"
+      @reorder="handleReorder"
+      @move="handleMoveTask"
+      @complete="handleComplete"
+      @delete="handleDelete"
+      @postpone="handlePostpone"
+      @pin="handlePin"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import TaskColumn from '@/modules/tasks/components/TaskColumn.vue';
 import { useTasksStore } from '@/stores/tasks';
 import { useUiStore } from '@/stores/ui';
 import { useDevice } from '@/utils/device';
+import { applyFilter, applySort } from '@/utils/filter';
+import type { FilterType, SortType } from '@/utils/filter';
 import type { TaskDTO, TaskStatus } from '@/services/types';
 
 interface MovePayload {
@@ -64,12 +43,16 @@ const props = defineProps<{ active: TaskStatus }>();
 const tasksStore = useTasksStore();
 const uiStore = useUiStore();
 const { nowTasks, futureTasks, historyTasks, capacityWarning } = storeToRefs(tasksStore);
-const { searchKeyword } = storeToRefs(uiStore);
+const { searchKeyword, activeFilter, activeSort } = storeToRefs(uiStore);
 
 const { isDesktop } = useDevice();
 
-const active = computed(() => props.active);
+// 组件挂载时加载当前状态的任务
+onMounted(() => {
+  tasksStore.load(props.active);
+});
 
+// 关键词搜索过滤
 const filterTask = (task: TaskDTO, keyword: string) => {
   if (!keyword) {
     return true;
@@ -81,9 +64,27 @@ const filterTask = (task: TaskDTO, keyword: string) => {
   );
 };
 
-const nowFiltered = computed(() => nowTasks.value.filter((task) => filterTask(task, searchKeyword.value)));
-const futureFiltered = computed(() => futureTasks.value.filter((task) => filterTask(task, searchKeyword.value)));
-const historyFiltered = computed(() => historyTasks.value.filter((task) => filterTask(task, searchKeyword.value)));
+// 应用筛选和排序
+const applyFiltersAndSort = (tasks: TaskDTO[]) => {
+  // 1. 先应用关键词搜索
+  let filtered = tasks.filter((task) => filterTask(task, searchKeyword.value));
+  
+  // 2. 应用快速筛选
+  if (activeFilter.value && activeFilter.value !== 'all') {
+    filtered = applyFilter(filtered, activeFilter.value as FilterType);
+  }
+  
+  // 3. 应用排序（如果不是默认状态）
+  if (activeSort.value && activeSort.value !== 'deadline') {
+    filtered = applySort(filtered, activeSort.value as SortType);
+  }
+  
+  return filtered;
+};
+
+const nowFiltered = computed(() => applyFiltersAndSort(nowTasks.value));
+const futureFiltered = computed(() => applyFiltersAndSort(futureTasks.value));
+const historyFiltered = computed(() => applyFiltersAndSort(historyTasks.value));
 
 const columnConfigs = computed(() => [
   {
@@ -107,10 +108,8 @@ const columnConfigs = computed(() => [
 ]);
 
 const visibleColumns = computed(() => {
-  if (isDesktop.value) {
-    return columnConfigs.value;
-  }
-  return columnConfigs.value.filter((column) => column.status === active.value);
+  // 只显示当前激活的列
+  return columnConfigs.value.filter((column) => column.status === props.active);
 });
 
 function openDrawer(task: TaskDTO) {
@@ -130,6 +129,18 @@ async function handleMove(payload: MovePayload) {
   }
 }
 
+async function handleMoveTask(uuid: string) {
+  // 简单的状态切换逻辑：now <-> future
+  const task = tasksStore.tasksById[uuid];
+  if (!task) return;
+  
+  if (task.status === 'now') {
+    await tasksStore.updateStatus(uuid, 'future');
+  } else if (task.status === 'future') {
+    await tasksStore.updateStatus(uuid, 'now');
+  }
+}
+
 async function handleComplete(uuid: string) {
   await tasksStore.completeTask(uuid);
 }
@@ -138,8 +149,20 @@ async function handleDelete(uuid: string) {
   await tasksStore.deleteTask(uuid);
 }
 
-async function refreshAll() {
-  await tasksStore.load();
+async function handlePostpone(uuid: string) {
+  // 延期任务到明天
+  const task = tasksStore.tasksById[uuid];
+  if (task) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const deadlineStr = tomorrow.toISOString().split('T')[0];
+    await tasksStore.updateTask(uuid, { deadline: deadlineStr });
+  }
+}
+
+async function handlePin(uuid: string) {
+  // TODO: 实现置顶功能（需要后端支持）
+  console.log('置顶任务:', uuid);
 }
 </script>
 

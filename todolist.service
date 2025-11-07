@@ -1,0 +1,29 @@
+[Unit]
+Description=TodoList Server
+After=network.target
+
+[Service]
+Type=simple
+User=todolist
+Group=todolist
+WorkingDirectory=/opt/todolist
+ExecStart=/opt/todolist/todolist-server
+Restart=always
+RestartSec=5
+SuccessExitStatus=0
+
+# 环境变量
+Environment=GIN_MODE=release
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/todolist/logs
+
+# 资源限制
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

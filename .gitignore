@@ -1,0 +1,6 @@
+backend/uploads/**
+*.zip
+
+# 构建输出目录 / Build output directory
+upline/
+frontend/node_modules/

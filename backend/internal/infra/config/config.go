@@ -86,10 +86,10 @@ func Load() (*Config, error) {
 
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.host", "0.0.0.0")
-	v.SetDefault("app.port", 8080)
+	v.SetDefault("app.port", 8081)
 	v.SetDefault("app.env", "development")
 
-	v.SetDefault("database.dsn", "root:Jz%40szM982io@tcp(localhost:3306)/todolist?charset=utf8mb4&parseTime=True&loc=Local")
+	v.SetDefault("database.dsn", "root:Jz@szM982io@tcp(localhost:3306)/todolist?charset=utf8mb4&parseTime=True&loc=Local")
 	v.SetDefault("database.maxIdleConns", 5)
 	v.SetDefault("database.maxOpenConns", 20)
 	v.SetDefault("database.connMaxLifetime", "15m")
