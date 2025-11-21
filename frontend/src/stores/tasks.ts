@@ -26,9 +26,16 @@ function ensureStatus(status?: TaskStatus): TaskStatus {
 
 function upsertTask(tasks: TaskMap, task: TaskDTO) {
   tasks[task.uuid] = task;
+  if (task.children?.length) {
+    task.children.forEach((child) => upsertTask(tasks, child));
+  }
 }
 
 function removeTask(tasks: TaskMap, uuid: string) {
+  const task = tasks[uuid];
+  if (task?.children?.length) {
+    task.children.forEach((child) => removeTask(tasks, child.uuid));
+  }
   delete tasks[uuid];
 }
 
@@ -137,11 +144,30 @@ export const useTasksStore = defineStore('tasks', () => {
     syncLists();
   }
 
-  async function createTask(payload: { title: string; notes?: string | null; deadline?: string | null; status?: TaskStatus }, options: CreateTaskOptions = {}) {
+  async function createTask(payload: { title: string; notes?: string | null; deadline?: string | null; status?: TaskStatus; parentUuid?: string | null }, options: CreateTaskOptions = {}) {
     try {
       const { task, undoToken } = await taskApi.create(payload);
       upsertTask(tasksById, task);
-      insertToList(task);
+
+      // Child tasks should not be added to the main list
+      // They only exist in their parent's children array
+      const isChildTask = !!payload.parentUuid;
+
+      if (!isChildTask) {
+        // Only add root tasks to the main list
+        insertToList(task);
+      }
+
+      // If this is a child task, refresh the parent to update its children array
+      if (payload.parentUuid && tasksById[payload.parentUuid]) {
+        try {
+          const updatedParent = await taskApi.get(payload.parentUuid);
+          upsertTask(tasksById, updatedParent);
+        } catch (error) {
+          console.error('Failed to refresh parent task:', error);
+        }
+      }
+
       lastUndoToken.value = undoToken;
       if (options.showToast !== false) {
         uiStore.pushUndoToast(options.toastMessage ?? '任务已创建', undoToken);
@@ -154,10 +180,29 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   async function updateTask(uuid: string, payload: { title?: string; notes?: string | null; deadline?: string | null }) {
+    const existing = tasksById[uuid];
+    const parentUuid = existing?.parentUuid;
+    const isChildTask = !!parentUuid;
+
     try {
       const { task, undoToken } = await taskApi.update(uuid, payload);
       upsertTask(tasksById, task);
-      insertToList(task);
+
+      // Only update lists for root tasks
+      if (!isChildTask) {
+        insertToList(task);
+      }
+
+      // If this was a child task, refresh the parent to update its children array
+      if (parentUuid && tasksById[parentUuid]) {
+        try {
+          const updatedParent = await taskApi.get(parentUuid);
+          upsertTask(tasksById, updatedParent);
+        } catch (error) {
+          console.error('Failed to refresh parent task:', error);
+        }
+      }
+
       lastUndoToken.value = undoToken;
       uiStore.pushUndoToast('任务已更新', undoToken);
       return task;
@@ -169,17 +214,35 @@ export const useTasksStore = defineStore('tasks', () => {
 
   async function updateStatus(uuid: string, status: TaskStatus, sortWeight?: number) {
     const existing = tasksById[uuid];
+    const parentUuid = existing?.parentUuid;
+    const isChildTask = !!parentUuid;
+
     try {
       const { task, undoToken } = await taskApi.updateStatus(uuid, {
         status,
         sortWeight
       });
       upsertTask(tasksById, task);
-      if (existing) {
-        moveBetweenLists(uuid, ensureStatus(existing.status), ensureStatus(task.status));
-      } else {
-        insertToList(task);
+
+      // Only update lists for root tasks
+      if (!isChildTask) {
+        if (existing) {
+          moveBetweenLists(uuid, ensureStatus(existing.status), ensureStatus(task.status));
+        } else {
+          insertToList(task);
+        }
       }
+
+      // If this was a child task, refresh the parent to update its children array
+      if (parentUuid && tasksById[parentUuid]) {
+        try {
+          const updatedParent = await taskApi.get(parentUuid);
+          upsertTask(tasksById, updatedParent);
+        } catch (error) {
+          console.error('Failed to refresh parent task:', error);
+        }
+      }
+
       lastUndoToken.value = undoToken;
       uiStore.pushUndoToast('任务已移动', undoToken);
       return task;
@@ -191,11 +254,29 @@ export const useTasksStore = defineStore('tasks', () => {
 
   async function completeTask(uuid: string) {
     const existing = tasksById[uuid];
+    const parentUuid = existing?.parentUuid;
+    const isChildTask = !!parentUuid;
+
     try {
       const { task, undoToken } = await taskApi.complete(uuid);
       upsertTask(tasksById, task);
-      const fromStatus = existing ? ensureStatus(existing.status) : ensureStatus(task.status);
-      moveBetweenLists(uuid, fromStatus, 'history');
+
+      // Only update lists for root tasks
+      if (!isChildTask) {
+        const fromStatus = existing ? ensureStatus(existing.status) : ensureStatus(task.status);
+        moveBetweenLists(uuid, fromStatus, 'history');
+      }
+
+      // If this was a child task, refresh the parent to update its children array
+      if (parentUuid && tasksById[parentUuid]) {
+        try {
+          const updatedParent = await taskApi.get(parentUuid);
+          upsertTask(tasksById, updatedParent);
+        } catch (error) {
+          console.error('Failed to refresh parent task:', error);
+        }
+      }
+
       lastUndoToken.value = undoToken;
       uiStore.pushUndoToast('任务已完成', undoToken);
       return task;
@@ -207,12 +288,31 @@ export const useTasksStore = defineStore('tasks', () => {
 
   async function deleteTask(uuid: string) {
     try {
-      const result = await taskApi.remove(uuid);
       const existing = tasksById[uuid];
+      const parentUuid = existing?.parentUuid;
+      const isChildTask = !!parentUuid;
+
+      const result = await taskApi.remove(uuid);
+
       if (existing) {
         removeTask(tasksById, uuid);
-        removeFromList(listIds[ensureStatus(existing.status)], uuid);
+
+        // Only remove from lists for root tasks
+        if (!isChildTask) {
+          removeFromList(listIds[ensureStatus(existing.status)], uuid);
+        }
       }
+
+      // If this was a child task, refresh the parent to update its children array
+      if (parentUuid && tasksById[parentUuid]) {
+        try {
+          const updatedParent = await taskApi.get(parentUuid);
+          upsertTask(tasksById, updatedParent);
+        } catch (error) {
+          console.error('Failed to refresh parent task:', error);
+        }
+      }
+
       lastUndoToken.value = result.undoToken;
       uiStore.pushUndoToast('任务已删除', result.undoToken);
       return result.uuid;

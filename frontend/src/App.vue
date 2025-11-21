@@ -108,21 +108,28 @@ const tabs = computed(() => [
   { label: '历史', to: { name: 'history' }, active: route.name === 'history', count: tasksStore.historyTasks.length }
 ]);
 
-const { N, shift_N, Digit1, Digit2, Digit3 } = useMagicKeys();
+const { N, shift_N } = useMagicKeys();
 
 // 修改 N 和 Shift+N 快捷键，现在打开模态框而不是跳转
 watchKey(N, () => uiStore.openModal('create', undefined, 'future'));
 watchKey(shift_N, () => uiStore.openModal('create', undefined, 'now'));
-watchKey(Digit1, () => router.push({ name: 'now' }));
-watchKey(Digit2, () => router.push({ name: 'future' }));
-watchKey(Digit3, () => router.push({ name: 'history' }));
 
 function watchKey(source: any, callback: () => void) {
   watch(source, (pressed) => {
     if (pressed) {
-      callback();
+      // 检查当前焦点是否在输入框或文本区域
+      const activeElement = document.activeElement;
+      const isTyping = activeElement instanceof HTMLInputElement || 
+                       activeElement instanceof HTMLTextAreaElement;
+      
+      // 只在非输入状态下触发快捷键
+      if (!isTyping) {
+        callback();
+      }
     }
   });
 }
+
+
 </script>
 

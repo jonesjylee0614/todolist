@@ -35,8 +35,8 @@
           </span>
           
           <!-- 完成时间（仅历史任务） -->
-          <span v-if="task.status === 'history' && task.completed_at" class="text-xs text-slate-500 px-2">
-            完成于 {{ formatCompletedAt(task.completed_at) }}
+          <span v-if="task.status === 'history' && task.completedAt" class="text-xs text-slate-500 px-2">
+            完成于 {{ formatCompletedAt(task.completedAt) }}
           </span>
         </div>
       </div>
@@ -106,6 +106,13 @@
               >
                 <span>⭐</span> 置顶
               </button> -->
+              <button
+                v-if="task.status !== 'history' && !task.parentUuid"
+                class="menu-item flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
+                @click="handleAddSubtask"
+              >
+                <span>➕</span> 添加子任务
+              </button>
               <div class="my-1 h-px bg-white/10"></div>
               <button
                 class="menu-item flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
@@ -117,6 +124,20 @@
           </Transition>
         </div>
       </div>
+    </div>
+    <!-- Subtasks Section -->
+    <div v-if="task.children && task.children.length > 0" class="mt-4 ml-4 border-l-2 border-white/10 pl-4 space-y-2">
+      <TaskCard
+        v-for="child in task.children"
+        :key="child.uuid"
+        :task="child"
+        @complete="$emit('complete-child', child)"
+        @open="$emit('open', child)"
+        @delete="$emit('delete-child', child)"
+        @postpone="$emit('postpone-child', child)"
+        @move="$emit('move-child', child)"
+        @add-subtask="$emit('add-subtask', child)"
+      />
     </div>
   </article>
 </template>
@@ -134,6 +155,13 @@ const emit = defineEmits<{
   postpone: [];
   move: [];
   pin: [];
+
+  // Events for children bubbling up
+  'complete-child': [task: TaskDTO];
+  'delete-child': [task: TaskDTO];
+  'postpone-child': [task: TaskDTO];
+  'move-child': [task: TaskDTO];
+  'add-subtask': [task: TaskDTO];
 }>();
 
 const showMenu = ref(false);
@@ -202,6 +230,11 @@ function handlePin() {
 
 function handleDelete() {
   emit('delete');
+  closeMenu();
+}
+
+function handleAddSubtask() {
+  emit('add-subtask', props.task);
   closeMenu();
 }
 

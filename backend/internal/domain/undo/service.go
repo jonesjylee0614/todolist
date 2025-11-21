@@ -51,7 +51,17 @@ func (s *Service) RecordOperation(ctx context.Context, tx interface{}, action ta
 		ExpireAt:    time.Now().Add(s.ttl),
 	}
 
-	if err := s.repo.Create(ctx, tx.(*gorm.DB), op); err != nil {
+	var db *gorm.DB
+	if tx != nil {
+		if gormDB, ok := tx.(*gorm.DB); ok {
+			db = gormDB
+		}
+	}
+	if db == nil {
+		return "", errors.New("invalid transaction")
+	}
+
+	if err := s.repo.Create(ctx, db, op); err != nil {
 		return "", err
 	}
 	return token, nil

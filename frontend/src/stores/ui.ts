@@ -32,7 +32,8 @@ export const useUiStore = defineStore('ui', () => {
     isModalOpen: false,
     modalMode: 'create' as 'create' | 'edit',
     editingTaskId: null as string | null,
-    modalDefaultStatus: 'future' as 'now' | 'future'
+    modalDefaultStatus: 'future' as 'now' | 'future',
+    modalParentUuid: undefined as string | undefined
   });
 
   function pushToast(options: ToastOptions) {
@@ -94,10 +95,11 @@ export const useUiStore = defineStore('ui', () => {
     state.activeSort = sort;
   }
 
-  function openModal(mode: 'create' | 'edit', taskId?: string, defaultStatus?: 'now' | 'future') {
+  function openModal(mode: 'create' | 'edit', taskId?: string, defaultStatus?: 'now' | 'future', parentUuid?: string) {
     state.modalMode = mode;
     state.editingTaskId = taskId || null;
     state.modalDefaultStatus = defaultStatus || 'future';
+    state.modalParentUuid = parentUuid;
     state.isModalOpen = true;
   }
 
@@ -105,6 +107,7 @@ export const useUiStore = defineStore('ui', () => {
     state.isModalOpen = false;
     state.editingTaskId = null;
     state.modalDefaultStatus = 'future';
+    state.modalParentUuid = undefined;
   }
 
   return {

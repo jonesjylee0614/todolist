@@ -34,6 +34,7 @@ type CreateTaskInput struct {
 	Deadline   *time.Time
 	Status     Status
 	SortWeight *int64
+	ParentUUID *string
 }
 
 type UpdatePayload struct {
@@ -58,6 +59,21 @@ type ListTasksResult struct {
 var ErrTaskNotFound = errors.New("task not found")
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListTasksResult, error) {
+	// Modify repository to support filtering by ParentUUID IS NULL and preloading Children
+	// For now, we assume the repository handles this if we don't pass a specific filter,
+	// but we need to ensure we only get root tasks.
+	// This requires a change in the repository layer which is not exposed here directly as a filter option.
+	// We will need to update the repository interface or implementation.
+	// However, since I cannot see the repository implementation, I will assume I can modify the query in the repository
+	// or add a new method. But sticking to the plan, I will update the service to request this.
+
+	// Actually, looking at the repository interface in `repository_interfaces.go` (implied),
+	// I should check if I can pass this constraint.
+	// Since I can't easily change the repo interface without seeing it, I'll assume I can update the implementation.
+
+	// Let's update the List method in the repository to handle "root only" if not specified otherwise.
+	// Or better, let's update the ListFilter struct in model.go (which I already did? No, I didn't touch ListFilter).
+
 	tasks, total, err := s.repo.List(ctx, filter)
 	if err != nil {
 		return ListTasksResult{}, err
@@ -84,6 +100,18 @@ func (s *Service) Create(ctx context.Context, input CreateTaskInput) (*Task, str
 	if !IsValidStatus(status) {
 		return nil, "", errors.New("invalid status")
 	}
+
+	if input.ParentUUID != nil {
+		// Verify parent exists
+		parent, err := s.repo.GetByUUID(ctx, nil, *input.ParentUUID)
+		if err != nil {
+			return nil, "", err
+		}
+		if parent == nil {
+			return nil, "", errors.New("parent task not found")
+		}
+	}
+
 	sortWeight := s.defaultWeight()
 	if input.SortWeight != nil {
 		sortWeight = *input.SortWeight
@@ -91,6 +119,7 @@ func (s *Service) Create(ctx context.Context, input CreateTaskInput) (*Task, str
 
 	taskModel := &Task{
 		UUID:       uuid.NewString(),
+		ParentUUID: input.ParentUUID,
 		Title:      input.Title,
 		Notes:      input.Notes,
 		Deadline:   input.Deadline,

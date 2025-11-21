@@ -100,18 +100,35 @@
               <div v-if="!isEdit" class="form-group">
                 <label class="mb-2 block text-sm font-medium text-slate-300">添加到</label>
                 <div class="radio-group flex gap-3">
-                  <label class="radio-label flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-brand-300 hover:bg-white/10"
-                    :class="form.status === 'future' ? 'border-brand bg-brand/20' : ''"
+                  <button
+                    type="button"
+                    class="group relative flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 transition-all duration-200"
+                    :class="[
+                      form.status === 'future' 
+                        ? 'border-brand bg-brand/20 text-white shadow-[0_0_15px_rgba(74,95,255,0.15)]' 
+                        : 'border-white/10 bg-white/5 text-slate-400 hover:border-brand-300/50 hover:bg-white/10 hover:text-slate-200'
+                    ]"
+                    @click="form.status = 'future'"
                   >
-                    <input v-model="form.status" type="radio" value="future" class="sr-only" />
-                    <span class="text-sm">📅 未来（稍后处理）</span>
-                  </label>
-                  <label class="radio-label flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-brand-300 hover:bg-white/10"
-                    :class="form.status === 'now' ? 'border-brand bg-brand/20' : ''"
+                    <div v-if="form.status === 'future'" class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_5px_rgba(74,95,255,0.8)]"></div>
+                    <span>📅</span>
+                    <span class="text-sm font-medium">未来 <span class="text-xs opacity-60 font-normal">(稍后)</span></span>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    class="group relative flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 transition-all duration-200"
+                    :class="[
+                      form.status === 'now' 
+                        ? 'border-emerald-500 bg-emerald-500/20 text-white shadow-[0_0_15px_rgba(16,185,129,0.15)]' 
+                        : 'border-white/10 bg-white/5 text-slate-400 hover:border-emerald-400/50 hover:bg-white/10 hover:text-slate-200'
+                    ]"
+                    @click="form.status = 'now'"
                   >
-                    <input v-model="form.status" type="radio" value="now" class="sr-only" />
-                    <span class="text-sm">⏰ 现在（立即开始）</span>
-                  </label>
+                    <div v-if="form.status === 'now'" class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></div>
+                    <span>⏰</span>
+                    <span class="text-sm font-medium">现在 <span class="text-xs opacity-60 font-normal">(立即)</span></span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -237,7 +254,8 @@ async function handleSubmit() {
           title: form.value.title.trim(),
           notes: form.value.notes.trim() || null,
           deadline: form.value.deadline || null,
-          status: form.value.status
+          status: form.value.status,
+          parentUuid: uiStore.modalParentUuid
         },
         {
           toastMessage: form.value.status === 'now' ? '任务已加入现在' : '任务已加入未来'

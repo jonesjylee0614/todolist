@@ -14,6 +14,7 @@ export interface CreateTaskPayload {
   deadline?: string | null;
   status?: TaskStatus;
   sortWeight?: number;
+  parentUuid?: string | null;
 }
 
 export interface UpdateTaskPayload {
@@ -37,109 +38,116 @@ export interface BulkOperationPayload {
   ids: string[];
 }
 
-const unwrapTask = (response: ApiResponse<TaskDTO>) => ({
-  task: response.data,
-  undoToken: response.undoToken ?? undefined
-});
+// Generic request helper to handle unwrapping
+async function request<T>(
+  method: 'get' | 'post' | 'patch' | 'delete',
+  url: string,
+  data?: any,
+  config?: any
+) {
+  const response = await http[method]<ApiResponse<T>>(url, data, config);
+  return {
+    data: response.data.data,
+    undoToken: response.data.undoToken ?? undefined
+  };
+}
 
-const unwrapList = (response: ApiResponse<{ items: TaskDTO[]; total: number }>) => ({
-  tasks: response.data.items,
-  total: response.data.total,
-  undoToken: response.undoToken ?? undefined
-});
-
-const unwrapUndo = (response: ApiResponse<{ affectedIds: string[] }>) => ({
-  affectedIds: response.data.affectedIds,
-  undoToken: response.undoToken ?? undefined
+// Specialized helpers for specific response types
+const unwrapList = (data: { items: TaskDTO[]; total: number }, undoToken?: string) => ({
+  tasks: data.items,
+  total: data.total,
+  undoToken
 });
 
 export const taskApi = {
-  async list(params: ListTasksParams = {}): Promise<{ tasks: TaskDTO[]; total: number }> {
-    const { data } = await http.get<ApiResponse<{ items: TaskDTO[]; total: number }>>(
+  async list(params: ListTasksParams = {}) {
+    const { data } = await request<{ items: TaskDTO[]; total: number }>(
+      'get',
       '/tasks',
       { params }
     );
-    return {
-      tasks: data.data.items,
-      total: data.data.total
-    };
+    return unwrapList(data);
   },
-  async get(uuid: string): Promise<TaskDTO> {
-    const { data } = await http.get<ApiResponse<TaskDTO>>(`/tasks/${uuid}`);
-    return data.data;
+
+  async get(uuid: string) {
+    const { data } = await request<TaskDTO>('get', `/tasks/${uuid}`);
+    return data;
   },
+
   async create(payload: CreateTaskPayload) {
-    const { data } = await http.post<ApiResponse<TaskDTO>>('/tasks', payload);
-    return unwrapTask(data);
+    const { data, undoToken } = await request<TaskDTO>('post', '/tasks', payload);
+    return { task: data, undoToken };
   },
+
   async update(uuid: string, payload: UpdateTaskPayload) {
-    const { data } = await http.patch<ApiResponse<TaskDTO>>(`/tasks/${uuid}`, payload);
-    return unwrapTask(data);
+    const { data, undoToken } = await request<TaskDTO>('patch', `/tasks/${uuid}`, payload);
+    return { task: data, undoToken };
   },
+
   async updateStatus(uuid: string, payload: UpdateStatusPayload) {
-    const { data } = await http.patch<ApiResponse<TaskDTO>>(`/tasks/${uuid}/status`, payload);
-    return unwrapTask(data);
+    const { data, undoToken } = await request<TaskDTO>(
+      'patch',
+      `/tasks/${uuid}/status`,
+      payload
+    );
+    return { task: data, undoToken };
   },
+
   async complete(uuid: string, completedAt?: string | null) {
-    const { data } = await http.post<ApiResponse<TaskDTO>>(`/tasks/${uuid}/complete`, {
+    const { data, undoToken } = await request<TaskDTO>('post', `/tasks/${uuid}/complete`, {
       completedAt
     });
-    return unwrapTask(data);
+    return { task: data, undoToken };
   },
+
   async remove(uuid: string) {
-    const { data } = await http.delete<ApiResponse<{ uuid: string }>>(`/tasks/${uuid}`);
-    return {
-      uuid: data.data.uuid,
-      undoToken: data.undoToken ?? undefined
-    };
+    const { data, undoToken } = await request<{ uuid: string }>('delete', `/tasks/${uuid}`);
+    return { uuid: data.uuid, undoToken };
   },
+
   async bulkMove(ids: string[], status: TaskStatus) {
-    const { data } = await http.post<ApiResponse<{ items: TaskDTO[]; total: number }>>(
+    const { data, undoToken } = await request<{ items: TaskDTO[]; total: number }>(
+      'post',
       '/tasks/bulk/move',
-      {
-        ids,
-        status
-      }
+      { ids, status }
     );
-    return unwrapList(data);
+    return unwrapList(data, undoToken);
   },
+
   async bulkComplete(ids: string[]) {
-    const { data } = await http.post<ApiResponse<{ items: TaskDTO[]; total: number }>>(
+    const { data, undoToken } = await request<{ items: TaskDTO[]; total: number }>(
+      'post',
       '/tasks/bulk/complete',
-      {
-        ids
-      }
+      { ids }
     );
-    return unwrapList(data);
+    return unwrapList(data, undoToken);
   },
+
   async bulkDelete(ids: string[]) {
-    const { data } = await http.post<ApiResponse<{ deleted: string[] }>>(
+    const { data, undoToken } = await request<{ deleted: string[] }>(
+      'post',
       '/tasks/bulk/delete',
-      {
-        ids
-      }
+      { ids }
     );
-    return {
-      deleted: data.data.deleted,
-      undoToken: data.undoToken ?? undefined
-    };
+    return { deleted: data.deleted, undoToken };
   },
+
   async updateOrder(payload: OrderUpdatePayload) {
-    const { data } = await http.post<
-      ApiResponse<{ status: TaskStatus; orderedIds: string[] }>
-    >('/tasks/order', payload);
-    return {
-      status: data.data.status,
-      orderedIds: data.data.orderedIds,
-      undoToken: data.undoToken ?? undefined
-    };
+    const { data, undoToken } = await request<{ status: TaskStatus; orderedIds: string[] }>(
+      'post',
+      '/tasks/order',
+      payload
+    );
+    return { ...data, undoToken };
   },
+
   async undo(token: string) {
-    const { data } = await http.post<ApiResponse<{ affectedIds: string[] }>>(
+    const { data, undoToken } = await request<{ affectedIds: string[] }>(
+      'post',
       '/undo',
       { token }
     );
-    return unwrapUndo(data);
+    return { affectedIds: data.affectedIds, undoToken };
   }
 };
 

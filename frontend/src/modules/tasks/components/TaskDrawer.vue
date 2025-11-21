@@ -84,6 +84,7 @@
           </div>
         </footer>
       </div>
+      <ConfirmDialog ref="confirmDialog" />
     </div>
   </Transition>
 </template>
@@ -95,11 +96,13 @@ import { useUiStore } from '@/stores/ui';
 import { useTasksStore } from '@/stores/tasks';
 import { formatCompletedAt } from '@/utils/date';
 import type { TaskStatus } from '@/services/types';
+import ConfirmDialog from '@/modules/tasks/components/ConfirmDialog.vue';
 
 const uiStore = useUiStore();
 const tasksStore = useTasksStore();
 
 const { isDrawerOpen, drawerTaskId } = storeToRefs(uiStore);
+const confirmDialog = ref<InstanceType<typeof ConfirmDialog>>();
 
 const task = computed(() => {
   const id = drawerTaskId.value;
@@ -170,11 +173,21 @@ async function complete() {
 }
 
 async function remove() {
-  if (!task.value) {
+  if (!task.value || !confirmDialog.value) {
     return;
   }
-  await tasksStore.deleteTask(task.value.uuid);
-  close();
+  
+  const confirmed = await confirmDialog.value.open({
+    title: '确认删除',
+    message: '确定要删除这个任务吗？此操作无法撤销。',
+    confirmText: '删除',
+    type: 'danger'
+  });
+
+  if (confirmed) {
+    await tasksStore.deleteTask(task.value.uuid);
+    close();
+  }
 }
 </script>
 
@@ -189,4 +202,5 @@ async function remove() {
   transform: translateX(100%);
 }
 </style>
+
 

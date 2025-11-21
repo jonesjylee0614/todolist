@@ -2,14 +2,25 @@ export type TaskStatus = 'now' | 'future' | 'history';
 
 export interface TaskDTO {
   uuid: string;
+  parentUuid?: string;
+  children?: TaskDTO[];
   title: string;
-  notes?: string | null;
-  deadline?: string | null;
-  status: TaskStatus;
+  notes?: string;
+  deadline?: string;
+  status: 'now' | 'future' | 'history';
   sortWeight: number;
   createdAt: string;
   updatedAt: string;
-  completedAt?: string | null;
+  completedAt?: string;
+}
+
+export interface CreateTaskPayload {
+  title: string;
+  notes?: string;
+  deadline?: string;
+  status?: 'now' | 'future' | 'history';
+  sortWeight?: number;
+  parentUuid?: string;
 }
 
 export interface ApiResponse<T> {
@@ -18,4 +29,3 @@ export interface ApiResponse<T> {
   data: T;
   undoToken?: string | null;
 }
-

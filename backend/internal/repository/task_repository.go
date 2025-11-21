@@ -23,32 +23,37 @@ func (r *TaskRepository) DB() *gorm.DB {
 	return r.db
 }
 
-func (r *TaskRepository) dbWith(tx *gorm.DB) *gorm.DB {
+func (r *TaskRepository) dbWith(tx interface{}) *gorm.DB {
 	if tx != nil {
-		return tx
+		if db, ok := tx.(*gorm.DB); ok {
+			return db
+		}
 	}
 	return r.db
 }
 
 func (r *TaskRepository) Create(ctx context.Context, tx interface{}, t *domain.Task) error {
-	return r.dbWith(tx.(*gorm.DB)).WithContext(ctx).Create(t).Error
+	return r.dbWith(tx).WithContext(ctx).Create(t).Error
 }
 
 func (r *TaskRepository) Update(ctx context.Context, tx interface{}, t *domain.Task) error {
-	return r.dbWith(tx.(*gorm.DB)).WithContext(ctx).Save(t).Error
+	return r.dbWith(tx).WithContext(ctx).Save(t).Error
 }
 
 func (r *TaskRepository) UpdateColumns(ctx context.Context, tx interface{}, uuid string, columns map[string]any) error {
-	return r.dbWith(tx.(*gorm.DB)).WithContext(ctx).Model(&domain.Task{}).Where("uuid = ?", uuid).Updates(columns).Error
+	return r.dbWith(tx).WithContext(ctx).Model(&domain.Task{}).Where("uuid = ?", uuid).Updates(columns).Error
 }
 
 func (r *TaskRepository) DeleteByUUID(ctx context.Context, tx interface{}, uuid string) error {
-	return r.dbWith(tx.(*gorm.DB)).WithContext(ctx).Where("uuid = ?", uuid).Delete(&domain.Task{}).Error
+	return r.dbWith(tx).WithContext(ctx).Where("uuid = ?", uuid).Delete(&domain.Task{}).Error
 }
 
 func (r *TaskRepository) GetByUUID(ctx context.Context, tx interface{}, uuid string) (*domain.Task, error) {
 	var t domain.Task
-	err := r.dbWith(tx.(*gorm.DB)).WithContext(ctx).
+	err := r.dbWith(tx).WithContext(ctx).
+		Preload("Children", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_weight ASC")
+		}).
 		Where("uuid = ?", uuid).
 		First(&t).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -65,7 +70,7 @@ func (r *TaskRepository) GetByUUIDs(ctx context.Context, tx interface{}, uuids [
 		return []domain.Task{}, nil
 	}
 	var tasks []domain.Task
-	err := r.dbWith(tx.(*gorm.DB)).WithContext(ctx).
+	err := r.dbWith(tx).WithContext(ctx).
 		Where("uuid IN ?", uuids).
 		Find(&tasks).Error
 	return tasks, err
@@ -73,6 +78,9 @@ func (r *TaskRepository) GetByUUIDs(ctx context.Context, tx interface{}, uuids [
 
 func (r *TaskRepository) List(ctx context.Context, filter domain.ListFilter) ([]domain.Task, int64, error) {
 	query := r.db.WithContext(ctx).Model(&domain.Task{})
+
+	// Only show root tasks in the main list
+	query = query.Where("parent_uuid IS NULL")
 
 	if filter.Status != nil {
 		query = query.Where("status = ?", *filter.Status)
@@ -108,6 +116,9 @@ func (r *TaskRepository) List(ctx context.Context, filter domain.ListFilter) ([]
 
 	var tasks []domain.Task
 	err := query.
+		Preload("Children", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_weight ASC")
+		}).
 		Order(order).
 		Offset(offset).
 		Limit(filter.PageSize).
@@ -119,7 +130,7 @@ func (r *TaskRepository) List(ctx context.Context, filter domain.ListFilter) ([]
 }
 
 func (r *TaskRepository) BulkUpdateStatus(ctx context.Context, tx interface{}, uuids []string, status domain.Status, columns map[string]any) error {
-	q := r.dbWith(tx.(*gorm.DB)).WithContext(ctx).Model(&domain.Task{}).Where("uuid IN ?", uuids)
+	q := r.dbWith(tx).WithContext(ctx).Model(&domain.Task{}).Where("uuid IN ?", uuids)
 	updates := map[string]any{
 		"status": status,
 	}
@@ -130,7 +141,7 @@ func (r *TaskRepository) BulkUpdateStatus(ctx context.Context, tx interface{}, u
 }
 
 func (r *TaskRepository) BulkDelete(ctx context.Context, tx interface{}, uuids []string) error {
-	return r.dbWith(tx.(*gorm.DB)).WithContext(ctx).Where("uuid IN ?", uuids).Delete(&domain.Task{}).Error
+	return r.dbWith(tx).WithContext(ctx).Where("uuid IN ?", uuids).Delete(&domain.Task{}).Error
 }
 
 func (r *TaskRepository) ReplaceSnapshots(ctx context.Context, tx interface{}, snapshots []domain.Snapshot) error {
@@ -139,7 +150,7 @@ func (r *TaskRepository) ReplaceSnapshots(ctx context.Context, tx interface{}, s
 	}
 	for _, snap := range snapshots {
 		taskModel := domain.FromSnapshot(snap)
-		err := r.dbWith(tx.(*gorm.DB)).WithContext(ctx).
+		err := r.dbWith(tx).WithContext(ctx).
 			Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "uuid"}},
 				UpdateAll: true,

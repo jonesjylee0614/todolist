@@ -16,14 +16,17 @@
       @delete="handleDelete"
       @postpone="handlePostpone"
       @pin="handlePin"
+      @add-subtask="handleAddSubtask"
     />
+    <ConfirmDialog ref="confirmDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, watch, onMounted } from 'vue';
+import { computed, watch, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import TaskColumn from '@/modules/tasks/components/TaskColumn.vue';
+import ConfirmDialog from '@/modules/tasks/components/ConfirmDialog.vue';
 import { useTasksStore } from '@/stores/tasks';
 import { useUiStore } from '@/stores/ui';
 import { useDevice } from '@/utils/device';
@@ -46,6 +49,7 @@ const { nowTasks, futureTasks, historyTasks, capacityWarning } = storeToRefs(tas
 const { searchKeyword, activeFilter, activeSort } = storeToRefs(uiStore);
 
 const { isDesktop } = useDevice();
+const confirmDialog = ref<InstanceType<typeof ConfirmDialog>>();
 
 // 组件挂载时加载当前状态的任务
 onMounted(() => {
@@ -146,7 +150,18 @@ async function handleComplete(uuid: string) {
 }
 
 async function handleDelete(uuid: string) {
-  await tasksStore.deleteTask(uuid);
+  if (!confirmDialog.value) return;
+  
+  const confirmed = await confirmDialog.value.open({
+    title: '确认删除',
+    message: '确定要删除这个任务吗？此操作无法撤销。',
+    confirmText: '删除',
+    type: 'danger'
+  });
+
+  if (confirmed) {
+    await tasksStore.deleteTask(uuid);
+  }
 }
 
 async function handlePostpone(uuid: string) {
@@ -164,5 +179,14 @@ async function handlePin(uuid: string) {
   // TODO: 实现置顶功能（需要后端支持）
   console.log('置顶任务:', uuid);
 }
+
+function handleAddSubtask(task: TaskDTO) {
+  uiStore.openModal('create', undefined, undefined, task.uuid);
+}
+
+const emit = defineEmits<{
+  'add-subtask': [parent: TaskDTO];
+}>();
 </script>
+
 

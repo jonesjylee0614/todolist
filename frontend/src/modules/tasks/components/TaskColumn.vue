@@ -22,6 +22,11 @@
           @postpone="emit('postpone', task.uuid)"
           @move="emit('move', task.uuid)"
           @pin="emit('pin', task.uuid)"
+          @add-subtask="(t) => emit('add-subtask', t)"
+          @complete-child="(t) => emit('complete', t.uuid)"
+          @delete-child="(t) => emit('delete', t.uuid)"
+          @postpone-child="(t) => emit('postpone', t.uuid)"
+          @move-child="(t) => emit('move', t.uuid)"
         />
       </div>
     </div>
@@ -50,6 +55,7 @@ const emit = defineEmits<{
   delete: [uuid: string];
   postpone: [uuid: string];
   pin: [uuid: string];
+  'add-subtask': [task: TaskDTO];
 }>();
 
 const internalTasks = computed(() => props.tasks);

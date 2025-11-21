@@ -53,3 +53,24 @@ func InternalServerError(c *gin.Context, msg string) {
     c.JSON(500, Envelope{Code: 50000, Message: msg})
 }
 
+
+func Error(c *gin.Context, err error) {
+	if err == nil {
+		Success(c, nil)
+		return
+	}
+
+	// Check for specific error types or messages
+	// This is a simple implementation; in a real app, you might use errors.Is or custom error types
+	msg := err.Error()
+	switch msg {
+	case "task not found":
+		NotFound(c, msg)
+	case "invalid status", "invalid deadline format", "invalid completed time", "empty ids", "ordered list empty":
+		BadRequest(c, msg)
+	case "undo token not found", "undo token expired", "undo token consumed":
+		Gone(c, msg)
+	default:
+		InternalServerError(c, msg)
+	}
+}
